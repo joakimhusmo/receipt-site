@@ -47,13 +47,19 @@ function printText(text) {
 
 function printImage(dataURL) {
   const base64 = dataURL.replace(/^data:image\/png;base64,/, "");
-  const png = PNG.sync.read(Buffer.from(base64, "base64"));
+  const buf = Buffer.from(base64, "base64");
+  const png = PNG.sync.read(buf);
+
+  console.log(`[agent] PNG size: ${png.width} x ${png.height}`);
+  console.log(`[agent] PNG bytes: ${buf.length}`);
+
   const raster = rgbaToEscPosRaster(png.data, png.width, png.height, 160);
   const init = Buffer.from([0x1b, 0x40]);
   const center = Buffer.from([0x1b, 0x61, 0x01]);
   const feed = Buffer.from([0x0a, 0x0a]);
   const cut = Buffer.from([0x1d, 0x56, 0x00]);
   const data = Buffer.concat([init, center, raster, feed, cut]);
+
   return new Promise((resolve, reject) => {
     printDirect({ data, printer: PRINTER, type: "RAW", success: resolve, error: reject });
   });
@@ -67,16 +73,17 @@ function run() {
   });
   socket.on("agent:ack", () => console.log("[agent] registered with cloud"));
   socket.on("job:print", async ({ text, png }) => {
-    try {
-      if (png) await printImage(png);
-      else     await printText(text || "");
-      console.log("[agent] printed");
-      socket.emit("job:done", { ok: true });
-    } catch (e) {
-      console.error("[agent] print error:", e);
-      socket.emit("job:done", { ok: false, error: String(e) });
-    }
-  });
+  console.log("[agent] job received", { hasText: !!text, hasPng: !!png });
+  try {
+    if (png) await printImage(png);
+    else     await printText(text || "");
+    console.log("[agent] printed");
+    socket.emit("job:done", { ok: true });
+  } catch (e) {
+    console.error("[agent] print error:", e);
+    socket.emit("job:done", { ok: false, error: String(e) });
+  }
+});
   socket.on("disconnect", () => console.log("[agent] disconnected"));
 }
 
