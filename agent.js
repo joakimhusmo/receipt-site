@@ -54,27 +54,25 @@ function printImage(dataURL) {
   const base64 = dataURL.replace(/^data:image\/png;base64,/, "");
   const buf = Buffer.from(base64, "base64");
   const png = PNG.sync.read(buf);
-
-  // debug to be sure we’re using the big canvas you generated
   console.log(`[agent] PNG size: ${png.width} x ${png.height}`, `(bytes: ${buf.length})`);
 
-  // IMPORTANT: width must be <= printer width and a multiple of 8
-  // Your front-end is already rendering ~544–576 wide which is fine.
   const raster = rgbaToEscPosRaster(png.data, png.width, png.height, 160);
 
-  // Build ESC/POS job
   const init   = Buffer.from([0x1b, 0x40]);       // ESC @
-  const center = Buffer.from([0x1b, 0x61, 0x01]); // ESC a 1  (center)
+  const center = Buffer.from([0x1b, 0x61, 0x01]); // ESC a 1
   const feed   = Buffer.from([0x0a, 0x0a]);       // LF LF
-  const cut    = Buffer.from([0x1d, 0x56, 0x00]); // GS V 0 (partial cut)
+  const cut    = Buffer.from([0x1d, 0x56, 0x00]); // GS V 0
 
   const data = Buffer.concat([init, center, raster, feed, cut]);
+
+  // 👇 Add the debug line right here
+  console.log("[agent] job header bytes:", [...data.slice(0, 8)]);
 
   return new Promise((resolve, reject) => {
     printDirect({
       data,
       printer: PRINTER,
-      type: "RAW",               // MUST be RAW, not TEXT
+      type: "RAW",
       success: resolve,
       error: reject
     });
@@ -91,7 +89,7 @@ function run() {
   socket.on("job:print", async ({ text, png }) => {
   console.log("[agent] job received", { hasText: !!text, hasPng: !!png });
   try {
-    if (png) await printImage(png);
+    if (png) await printImage(png);   // <-- make sure this line is here
     else     await printText(text || "");
     console.log("[agent] printed");
     socket.emit("job:done", { ok: true });
