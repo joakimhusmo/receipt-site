@@ -28,16 +28,12 @@
   <p id="status"></p>
 
   <script>
-    // If your glyphs are on A–Z, you don't need any mapping.
-    // If they live in the Private Use Area, map here (example shown, comment out if not needed):
-    /*
-    const MAP = { A:"\uE000", B:"\uE001", C:"\uE002", D:"\uE003", E:"\uE004", F:"\uE005",
-                  G:"\uE006", H:"\uE007", I:"\uE008", J:"\uE009", K:"\uE00A", L:"\uE00B",
-                  M:"\uE00C", N:"\uE00D", O:"\uE00E", P:"\uE00F", Q:"\uE010", R:"\uE011",
-                  S:"\uE012", T:"\uE013", U:"\uE014", V:"\uE015", W:"\uE016", X:"\uE017",
-                  Y:"\uE018", Z:"\uE019" };
-    const toPUA = s => s.replace(/[A-Z]/g, ch => MAP[ch] ?? ch);
-    */
+    // === controls for print size ===
+    let FONT_SIZE = 72;                         
+    let LINE      = Math.round(FONT_SIZE * 1.35); // ~35% extra line height
+    const W       = 576;                        // width in dots for 80mm paper
+    const FONT_FAMILY = "NewFont";
+    const FONT = () => `bold ${FONT_SIZE}px ${FONT_FAMILY}`;
 
     const statusEl = document.getElementById("status");
     const msgEl = document.getElementById("msg");
@@ -45,11 +41,11 @@
     const btnCustom = document.getElementById("btnCustom");
 
     const API_BASE = window.location.origin;
-    const LOCATION_ID = "oslo-gallery-1"; // choose a unique id for that remote site
+    const LOCATION_ID = "oslo-gallery-1"; 
 
     // Live preview of the fictional font in the input
     msgEl.style.fontFamily = "NewFont, system-ui";
-    msgEl.style.fontSize = "28px";
+    msgEl.style.fontSize   = `${FONT_SIZE}px`;  
     msgEl.style.fontFeatureSettings = '"liga" 1, "clig" 1';
 
     // --- Plain text print (built-in printer font) ---
@@ -67,8 +63,6 @@
     // --- Custom-font print: draw to canvas → PNG → send to /print-image ---
     btnCustom.onclick = async () => {
       try {
-        // If using PUA mapping, enable this line:
-        // const toPrint = toPUA(msgEl.value.toUpperCase());
         const toPrint = msgEl.value;
 
         const png = await textToPngDataURL(toPrint);
@@ -86,43 +80,44 @@
 
     // Render wrapped, centered text onto a canvas using NewFont
     async function textToPngDataURL(text) {
-      await document.fonts.ready;
+  await document.fonts.ready;
 
-      const W = 544;                 // good width for 80mm receipts
-      const PADDING = 24;
-      const LINE = 100;
-      const FONT = "bold 72px NewFont";
+  // use shared W / LINE / FONT()
+  const PADDING = 24;
 
-      // measure & wrap
-      const m = document.createElement("canvas").getContext("2d");
-      m.font = FONT;
-      const words = (text || "").split(/\s+/);
-      const lines = [];
-      let line = "";
-      for (const w of words) {
-        const t = line ? line + " " + w : w;
-        if (m.measureText(t).width > (W - PADDING*2)) { lines.push(line); line = w; }
-        else { line = t; }
-      }
-      if (line) lines.push(line);
+  // measure
+  const m = document.createElement("canvas").getContext("2d");
+  m.font = FONT();                                    // <— use function
+  const words = (text || "").split(/\s+/);
+  const lines = [];
+  let line = "";
 
-      // draw
-      const h = PADDING + Math.max(1, lines.length) * LINE + PADDING;
-      const c = document.createElement("canvas");
-      c.width = W; c.height = h;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#fff"; ctx.fillRect(0,0,W,h);
-      ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top";
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (m.measureText(t).width > (W - PADDING * 2)) { lines.push(line); line = w; }
+    else { line = t; }
+  }
+  if (line) lines.push(line);
 
-      let y = PADDING;
-      for (const l of lines) {
-        const w = ctx.measureText(l).width;
-        const x = (W - w) / 2;
-        ctx.fillText(l, x, y);
-        y += LINE;
-      }
-      return c.toDataURL("image/png");
-    }
+  // draw
+  const h = PADDING + Math.max(1, lines.length) * LINE + PADDING;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0,0,W,h);
+  ctx.fillStyle = "#000";
+  ctx.font = FONT();                                   // <— use function
+  ctx.textBaseline = "top";
+
+  let y = PADDING;
+  for (const l of lines) {
+    const w = ctx.measureText(l).width;
+    const x = (W - w) / 2;
+    ctx.fillText(l, x, y);
+    y += LINE;
+  }
+  return c.toDataURL("image/png");
+}
   </script>
 </body>
 </html>
