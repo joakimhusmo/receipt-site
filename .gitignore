@@ -1,0 +1,19 @@
+# node
+node_modules/
+server/node_modules/
+npm-debug.log*
+package-lock.json
+
+# env/secrets
+.env
+.env.local
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+
+# build artifacts (if any)
+dist/
+build/
+.cache/
