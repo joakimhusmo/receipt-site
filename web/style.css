@@ -1,0 +1,7 @@
+body { font-family: system-ui, sans-serif; margin: 3rem; max-width: 38rem; }
+h1 { margin: 0 0 1rem; }
+label { display:block; margin:.5rem 0 .25rem; font-weight:600; }
+input { width: 100%; font-size: 1.1rem; padding: .6rem; }
+button { font-size: 1.05rem; padding:.6rem .9rem; cursor:pointer; }
+.row { display:flex; gap:.5rem; margin:.75rem 0 0; }
+#status { margin-top:.5rem; }
