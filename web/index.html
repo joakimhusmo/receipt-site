@@ -1,194 +1,218 @@
 <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Art Receipt Printer</title>
-  <link rel="stylesheet" href="/style.css">
-  <!-- blank data URL avoids 404 for favicon -->
-  <link rel="icon" href="data:,">
-  <style>
-    /* Load your custom font */
-    @font-face {
-      font-family: "NewFont";
-      src: url("/fonts/NewFont-Regular.otf") format("opentype");
-      font-display: swap;
-    }
-  </style>
-</head>
-<body>
-  <h1>Type & Print</h1>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Art Receipt Printer</title>
 
-  <label for="msg">Message</label>
-  <input id="msg" placeholder="Type here…" />
-
-  <div class="row">
-    <button id="btnPlain">Print (built-in font)</button>
-    <button id="btnCustom">Print (custom font)</button>
-    <button id="btnCustomVert">Print (vertical custom)</button>
-  </div>
-
-  <p id="status"></p>
-
-  <script>
-    // === print sizing (adjust here) =========================================
-    let FONT_SIZE = 100;                 // <— requested size
-    let LINE      = 135;                 // <— target line height (80–85 range)
-    const W       = 576;                // receipt width in dots (80mm paper)
-    const FONT_FAMILY = "NewFont";
-    const FONT = () => `bold ${FONT_SIZE}px ${FONT_FAMILY}`;
-    console.log("client FONT_SIZE =", FONT_SIZE, "LINE =", LINE, "W =", W);
-
-    // === element refs =======================================================
-    const statusEl = document.getElementById("status");
-    const msgEl    = document.getElementById("msg");
-    const btnPlain = document.getElementById("btnPlain");
-    const btnCustom= document.getElementById("btnCustom");
-
-    // where to post
-    const API_BASE = window.location.origin;
-    const LOCATION_ID = "oslo-gallery-1"; // must match agent.js
-
-    // Live preview of your fictional font in the input
-    msgEl.style.fontFamily = "NewFont, system-ui";
-    msgEl.style.fontSize   = `${FONT_SIZE}px`;
-    msgEl.style.fontFeatureSettings = '"liga" 1, "clig" 1';
-
-    // --- Plain text print (built-in printer font) ---------------------------
-    btnPlain.onclick = async () => {
-      const text = msgEl.value;
-      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ text })
-      });
-      const j = await r.json();
-      statusEl.textContent = j.ok ? `Printed (built-in) ✅` : `Error: ${j.error}`;
-    };
-
-    // --- Custom-font print: draw canvas → PNG → send ------------------------
-    btnCustom.onclick = async () => {
-      try {
-        const toPrint = msgEl.value;
-        const png = await textToPngDataURL(toPrint);
-        // window.open(png, "_blank"); // ← uncomment to eyeball the PNG
-
-        const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ png })
-        });
-        const j = await r.json();
-        statusEl.textContent = j.ok ? `Printed (custom font) ✅` : `Error: ${j.error}`;
-      } catch (e) {
-        statusEl.textContent = "Error: " + e;
+    <!-- Simple, page-local styles -->
+    <style>
+      /* Load your custom font */
+      @font-face {
+        font-family: "NewFont";
+        src: url("/web/fonts/NewFont-Regular.otf") format("opentype");
+        font-display: swap;
       }
-    };
 
-    // ---- Vertical custom-font print (one long line down the paper) ----
-btnCustomVert.onclick = async () => {
-  try {
-    const toPrint = msgEl.value;
-    const png = await textToVerticalPngDataURL(toPrint);
-    const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ png })
-    });
-    const j = await r.json();
-    statusEl.textContent = j.ok ? `Printed (vertical) ✅` : `Error: ${j.error}`;
-  } catch (e) {
-    statusEl.textContent = "Error: " + e;
-  }
-};
+      :root { color-scheme: light; }
+      body {
+        font: 16px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        line-height: 1.35;
+        margin: 24px;
+        color: #111;
+      }
+      h1 { font-size: 32px; margin: 0 0 16px; }
+      label { display: block; margin: 12px 0 6px; font-weight: 600; }
+      #msg {
+        width: min(100%, 820px);
+        padding: 12px 14px;
+        border: 1px solid #bbb;
+        border-radius: 6px;
+        font: 28px "NewFont", system-ui, sans-serif; /* live preview with NewFont */
+        font-feature-settings: "liga" 1, "clig" 1;
+      }
+      .row { margin-top: 14px; display: flex; gap: 12px; flex-wrap: wrap; }
+      button {
+        padding: 10px 14px;
+        border-radius: 6px;
+        border: 1px solid #999;
+        background: #fafafa;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:hover { background: #f0f0f0; }
+      #status { margin-top: 12px; font-weight: 600; }
+      .ok { color: #0a7a29; } .err { color: #b21f1f; }
+    </style>
+  </head>
 
-/**
- * Render text to a horizontal offscreen canvas, then rotate it 90°
- * so it prints as one vertical line down the receipt.
- */
-async function textToVerticalPngDataURL(text) {
-  await document.fonts.ready;
+  <body>
+    <h1>Type &amp; Print</h1>
 
-  const W         = 576;   // paper width
-  const FONT_SIZE = 48;    // adjust as you like
-  const LINE      = 64;
-  const PADDING   = 24;
+    <label for="msg">Message</label>
+    <input id="msg" autocomplete="off" />
 
-  // 1) Source canvas with text laid out horizontally
-  const src = document.createElement("canvas");
-  const m   = src.getContext("2d");
-  m.font = `bold ${FONT_SIZE}px NewFont`;
-  m.textBaseline = "top";
+    <div class="row">
+      <button id="btnPlain">Print (built-in font)</button>
+      <button id="btnCustom">Print (custom font)</button>
+      <button id="btnVertical">Print (vertical custom)</button>
+    </div>
 
-  const t = (text || "");
-  const textWidth = Math.ceil(m.measureText(t).width);
+    <div id="status" aria-live="polite"></div>
 
-  src.width  = PADDING * 2 + textWidth;
-  src.height = LINE;
-
-  m.fillStyle = "#fff";
-  m.fillRect(0, 0, src.width, src.height);
-  m.fillStyle = "#000";
-  const y = Math.max(0, (LINE - FONT_SIZE) / 2);
-  m.fillText(t, PADDING, y);
-
-  // 2) Destination canvas (rotate text vertically)
-  const dst = document.createElement("canvas");
-  dst.width  = W;
-  dst.height = src.width;
-
-  const d = dst.getContext("2d");
-  d.fillStyle = "#fff";
-  d.fillRect(0, 0, dst.width, dst.height);
-
-  d.save();
-  d.translate(0, dst.height);
-  d.rotate(-Math.PI / 2);
-  const xCentered = (W - src.height) / 2;
-  d.drawImage(src, -dst.height, xCentered);
-  d.restore();
-
-  return dst.toDataURL("image/png");
-}
-
-    // --- Render wrapped, centered text to a canvas using NewFont ------------
-    async function textToPngDataURL(text) {
-      await document.fonts.ready;
+    <script>
+      // ===================== Tunables / constants =====================
+      // Adjust these; the vertical renderer will use as much paper length as needed.
+      let FONT_SIZE = 100;     // try 110–130 if you want bigger glyphs
+      let LINE = 135;          // increase if lines touch (e.g. 150–170 for very large glyphs)
+      const W = 576;           // receipt width in dots (80mm printers are ~576 dots wide)
       const PADDING = 24;
 
-      // measure into lines
-      const m = document.createElement("canvas").getContext("2d");
-      m.font = FONT();
-      const words = (text || "").split(/\s+/);
-      const lines = [];
-      let line = "";
-      for (const w of words) {
-        const t = line ? line + " " + w : w;
-        if (m.measureText(t).width > (W - PADDING * 2)) { lines.push(line); line = w; }
-        else { line = t; }
+      // Routing: location ID used by your cloud service to route to the right agent
+      const LOCATION_ID = "oslo-gallery-1"; // change if needed
+      const API_BASE = "";                   // same-origin (Render web service)
+
+      // Elements
+      const statusEl = document.getElementById("status");
+      const msgEl = document.getElementById("msg");
+      const btnPlain = document.getElementById("btnPlain");
+      const btnCustom = document.getElementById("btnCustom");
+      const btnVertical = document.getElementById("btnVertical");
+
+      // Helper for status messages
+      function setOk(msg)  { statusEl.textContent = msg; statusEl.className = "ok"; }
+      function setErr(msg) { statusEl.textContent = msg; statusEl.className = "err"; }
+
+      // ===================== Built-in text endpoint =====================
+      btnPlain.onclick = async () => {
+        try {
+          const text = String(msgEl.value ?? "").slice(0, 2000);
+          if (!text.trim()) { setErr("Empty text"); return; }
+
+          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text })
+          });
+          const j = await r.json();
+          j.ok ? setOk("Printed (built-in) ✅") : setErr("Error: " + j.error);
+        } catch (e) { setErr("Error: " + e); }
+      };
+
+      // ===================== Horizontal custom font (PNG) =====================
+      btnCustom.onclick = async () => {
+        try {
+          const toPrint = msgEl.value;
+          const png = await textToPngDataURL(toPrint);
+          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ png })
+          });
+          const j = await r.json();
+          j.ok ? setOk("Printed (custom font) ✅") : setErr("Error: " + j.error);
+        } catch (e) { setErr("Error: " + e); }
+      };
+
+      // ===================== Vertical custom font (PNG) =====================
+      btnVertical.onclick = async () => {
+        try {
+          const toPrint = msgEl.value;
+          const png = await verticalTextToPngDataURL(toPrint);
+          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ png })
+          });
+          const j = await r.json();
+          j.ok ? setOk("Printed (vertical) ✅") : setErr("Error: " + j.error);
+        } catch (e) { setErr("Error: " + e); }
+      };
+
+      // ===================== Rendering helpers =====================
+
+      // Build a horizontal text canvas using NewFont; returns a CANVAS element.
+      async function makeHorizontalCanvas(text) {
+        await document.fonts.ready; // ensure NewFont is available
+
+        const FONT_FAMILY = "NewFont";
+        const FONT = `bold ${FONT_SIZE}px ${FONT_FAMILY}`;
+
+        // Measure/wrap
+        const m = document.createElement("canvas").getContext("2d");
+        m.font = FONT;
+
+        const words = (text || "").split(/\s+/);
+        const lines = [];
+        let line = "";
+
+        for (const w of words) {
+          const t = line ? line + " " + w : w;
+          if (m.measureText(t).width > (W - PADDING * 2)) {
+            if (line) lines.push(line);
+            line = w;
+          } else {
+            line = t;
+          }
+        }
+        if (line) lines.push(line);
+
+        const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
+
+        // Draw
+        const c = document.createElement("canvas");
+        c.width = W;
+        c.height = H;
+        const ctx = c.getContext("2d");
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = "#000";
+        ctx.font = FONT;
+        ctx.textBaseline = "top";
+
+        let y = PADDING;
+        for (const l of lines) {
+          const w = ctx.measureText(l).width;
+          const x = (W - w) / 2;
+          ctx.fillText(l, x, y);
+          y += LINE;
+        }
+
+        return c; // horizontal canvas with text
       }
-      if (line) lines.push(line);
 
-      // draw
-      const h = PADDING + Math.max(1, lines.length) * LINE + PADDING;
-      const c = document.createElement("canvas");
-      c.width = W; c.height = h;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, h);
-      ctx.fillStyle = "#000";
-      ctx.font = FONT();
-      ctx.textBaseline = "top";
-
-      let y = PADDING;
-      for (const l of lines) {
-        const w = ctx.measureText(l).width;
-        const x = (W - w) / 2;
-        ctx.fillText(l, x, y);
-        y += LINE;
+      // Horizontal → PNG (used by the custom horizontal button)
+      async function textToPngDataURL(text) {
+        const c = await makeHorizontalCanvas(text);
+        return c.toDataURL("image/png");
       }
 
-      console.log("client PNG height =", h, "lines =", lines.length);
-      return c.toDataURL("image/png");
-    }
-  </script>
-</body>
+      // Vertical renderer: rotate the horizontal canvas −90° so text flows down the paper.
+      async function verticalTextToPngDataURL(text) {
+        const temp = await makeHorizontalCanvas(text); // width: W, height: H
+
+        const final = document.createElement("canvas");
+        final.width = temp.width;     // 576
+        final.height = temp.height;   // as tall as needed
+
+        const ctx = final.getContext("2d");
+
+        // white background
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, final.width, final.height);
+
+        // Core: move origin down, rotate CCW, then draw temp at (0,0)
+        ctx.translate(0, final.height);
+        ctx.rotate(-Math.PI / 2);
+        ctx.drawImage(temp, 0, 0);
+
+        // For debugging, open the PNG in a tab:
+        // window.open(final.toDataURL("image/png"), "_blank");
+
+        return final.toDataURL("image/png");
+      }
+    </script>
+  </body>
 </html>
