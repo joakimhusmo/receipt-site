@@ -14,23 +14,28 @@ console.log("[agent] starting…", { SERVER, LOCATION_ID, PRINTER });
 function rgbaToEscPosRaster(rgba, width, height, threshold = 160) {
   const bytesPerRow = Math.ceil(width / 8);
   const out = Buffer.alloc(bytesPerRow * height);
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
       const r = rgba[i], g = rgba[i+1], b = rgba[i+2], a = rgba[i+3];
+
+      // composite on white and compute luminance
       const rr = (a * r + (255 - a) * 255) / 255;
       const gg = (a * g + (255 - a) * 255) / 255;
       const bb = (a * b + (255 - a) * 255) / 255;
       const lum = 0.299*rr + 0.587*gg + 0.114*bb;
-      const bit = lum < 160 ? 1 : 0;
+
+      const bit = lum < threshold ? 1 : 0;            // 1 = black
       const byteIndex = y * bytesPerRow + (x >> 3);
       const bitPos = 7 - (x & 7);
       if (bit) out[byteIndex] |= (1 << bitPos);
     }
   }
+
   const xL = bytesPerRow & 0xff, xH = (bytesPerRow >> 8) & 0xff;
   const yL = height & 0xff,      yH = (height >> 8) & 0xff;
-  const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+  const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]); // GS v 0 m xL xH yL yH
   return Buffer.concat([header, out]);
 }
 
@@ -50,18 +55,29 @@ function printImage(dataURL) {
   const buf = Buffer.from(base64, "base64");
   const png = PNG.sync.read(buf);
 
-  console.log(`[agent] PNG size: ${png.width} x ${png.height}`);
-  console.log(`[agent] PNG bytes: ${buf.length}`);
+  // debug to be sure we’re using the big canvas you generated
+  console.log(`[agent] PNG size: ${png.width} x ${png.height}`, `(bytes: ${buf.length})`);
 
+  // IMPORTANT: width must be <= printer width and a multiple of 8
+  // Your front-end is already rendering ~544–576 wide which is fine.
   const raster = rgbaToEscPosRaster(png.data, png.width, png.height, 160);
-  const init = Buffer.from([0x1b, 0x40]);
-  const center = Buffer.from([0x1b, 0x61, 0x01]);
-  const feed = Buffer.from([0x0a, 0x0a]);
-  const cut = Buffer.from([0x1d, 0x56, 0x00]);
+
+  // Build ESC/POS job
+  const init   = Buffer.from([0x1b, 0x40]);       // ESC @
+  const center = Buffer.from([0x1b, 0x61, 0x01]); // ESC a 1  (center)
+  const feed   = Buffer.from([0x0a, 0x0a]);       // LF LF
+  const cut    = Buffer.from([0x1d, 0x56, 0x00]); // GS V 0 (partial cut)
+
   const data = Buffer.concat([init, center, raster, feed, cut]);
 
   return new Promise((resolve, reject) => {
-    printDirect({ data, printer: PRINTER, type: "RAW", success: resolve, error: reject });
+    printDirect({
+      data,
+      printer: PRINTER,
+      type: "RAW",               // MUST be RAW, not TEXT
+      success: resolve,
+      error: reject
+    });
   });
 }
 
