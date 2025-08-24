@@ -4,7 +4,7 @@ const { printDirect, getDefaultPrinterName } = require("@thiagoelg/node-printer"
 const iconv = require("iconv-lite");
 const { PNG } = require("pngjs");
 
-const SERVER = "http://localhost:3000";        // for local test
+const SERVER = "https://lettertotheforestandthesun.onrender.com";
 const LOCATION_ID = "oslo-gallery-1";          // must match index.html
 const SECRET = "dev-secret";                   // any string for local test
 const PRINTER = getDefaultPrinterName();       // or your printer name

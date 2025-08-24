@@ -44,6 +44,7 @@
     const btnPlain = document.getElementById("btnPlain");
     const btnCustom = document.getElementById("btnCustom");
 
+    const API_BASE = window.location.origin;
     const LOCATION_ID = "oslo-gallery-1"; // choose a unique id for that remote site
 
     // Live preview of the fictional font in the input
@@ -54,7 +55,7 @@
     // --- Plain text print (built-in printer font) ---
     btnPlain.onclick = async () => {
       const text = msgEl.value;
-      const r = await fetch(`/print/${encodeURIComponent(LOCATION_ID)}`, {
+      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
   method: "POST",
   headers: {"Content-Type":"application/json"},
   body: JSON.stringify({ text })
@@ -71,7 +72,7 @@
         const toPrint = msgEl.value;
 
         const png = await textToPngDataURL(toPrint);
-        const r = await fetch(`/print/${encodeURIComponent(LOCATION_ID)}`, {
+        const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
   method: "POST",
   headers: {"Content-Type":"application/json"},
   body: JSON.stringify({ png })
@@ -89,8 +90,8 @@
 
       const W = 544;                 // good width for 80mm receipts
       const PADDING = 24;
-      const LINE = 56;
-      const FONT = "bold 36px NewFont";
+      const LINE = 220;
+      const FONT = "bold 200px NewFont";
 
       // measure & wrap
       const m = document.createElement("canvas").getContext("2d");
