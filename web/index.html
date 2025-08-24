@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <title>Art Receipt Printer</title>
   <link rel="stylesheet" href="/style.css">
+  <!-- blank data URL avoids 404 for favicon -->
   <link rel="icon" href="data:,">
   <style>
     /* Load your custom font */
@@ -28,49 +29,53 @@
   <p id="status"></p>
 
   <script>
-    // === controls for print size ===
-    let FONT_SIZE = 72;                         
-    let LINE      = Math.round(FONT_SIZE * 1.35); // ~35% extra line height
-    const W       = 576;                        // width in dots for 80mm paper
+    // === print sizing (adjust here) =========================================
+    let FONT_SIZE = 60;                 // <— requested size
+    let LINE      = 84;                 // <— target line height (80–85 range)
+    const W       = 576;                // receipt width in dots (80mm paper)
     const FONT_FAMILY = "NewFont";
     const FONT = () => `bold ${FONT_SIZE}px ${FONT_FAMILY}`;
+    console.log("client FONT_SIZE =", FONT_SIZE, "LINE =", LINE, "W =", W);
 
+    // === element refs =======================================================
     const statusEl = document.getElementById("status");
-    const msgEl = document.getElementById("msg");
+    const msgEl    = document.getElementById("msg");
     const btnPlain = document.getElementById("btnPlain");
-    const btnCustom = document.getElementById("btnCustom");
+    const btnCustom= document.getElementById("btnCustom");
 
+    // where to post
     const API_BASE = window.location.origin;
-    const LOCATION_ID = "oslo-gallery-1"; 
+    const LOCATION_ID = "oslo-gallery-1"; // must match agent.js
 
-    // Live preview of the fictional font in the input
+    // Live preview of your fictional font in the input
     msgEl.style.fontFamily = "NewFont, system-ui";
-    msgEl.style.fontSize   = `${FONT_SIZE}px`;  
+    msgEl.style.fontSize   = `${FONT_SIZE}px`;
     msgEl.style.fontFeatureSettings = '"liga" 1, "clig" 1';
 
-    // --- Plain text print (built-in printer font) ---
+    // --- Plain text print (built-in printer font) ---------------------------
     btnPlain.onclick = async () => {
       const text = msgEl.value;
       const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({ text })
-});
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ text })
+      });
       const j = await r.json();
       statusEl.textContent = j.ok ? `Printed (built-in) ✅` : `Error: ${j.error}`;
     };
 
-    // --- Custom-font print: draw to canvas → PNG → send to /print-image ---
+    // --- Custom-font print: draw canvas → PNG → send ------------------------
     btnCustom.onclick = async () => {
       try {
         const toPrint = msgEl.value;
-
         const png = await textToPngDataURL(toPrint);
+        // window.open(png, "_blank"); // ← uncomment to eyeball the PNG
+
         const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({ png })
-});
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ png })
+        });
         const j = await r.json();
         statusEl.textContent = j.ok ? `Printed (custom font) ✅` : `Error: ${j.error}`;
       } catch (e) {
@@ -78,46 +83,45 @@
       }
     };
 
-    // Render wrapped, centered text onto a canvas using NewFont
+    // --- Render wrapped, centered text to a canvas using NewFont ------------
     async function textToPngDataURL(text) {
-  await document.fonts.ready;
+      await document.fonts.ready;
+      const PADDING = 24;
 
-  // use shared W / LINE / FONT()
-  const PADDING = 24;
+      // measure into lines
+      const m = document.createElement("canvas").getContext("2d");
+      m.font = FONT();
+      const words = (text || "").split(/\s+/);
+      const lines = [];
+      let line = "";
+      for (const w of words) {
+        const t = line ? line + " " + w : w;
+        if (m.measureText(t).width > (W - PADDING * 2)) { lines.push(line); line = w; }
+        else { line = t; }
+      }
+      if (line) lines.push(line);
 
-  // measure
-  const m = document.createElement("canvas").getContext("2d");
-  m.font = FONT();                                    // <— use function
-  const words = (text || "").split(/\s+/);
-  const lines = [];
-  let line = "";
+      // draw
+      const h = PADDING + Math.max(1, lines.length) * LINE + PADDING;
+      const c = document.createElement("canvas");
+      c.width = W; c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, h);
+      ctx.fillStyle = "#000";
+      ctx.font = FONT();
+      ctx.textBaseline = "top";
 
-  for (const w of words) {
-    const t = line ? line + " " + w : w;
-    if (m.measureText(t).width > (W - PADDING * 2)) { lines.push(line); line = w; }
-    else { line = t; }
-  }
-  if (line) lines.push(line);
+      let y = PADDING;
+      for (const l of lines) {
+        const w = ctx.measureText(l).width;
+        const x = (W - w) / 2;
+        ctx.fillText(l, x, y);
+        y += LINE;
+      }
 
-  // draw
-  const h = PADDING + Math.max(1, lines.length) * LINE + PADDING;
-  const c = document.createElement("canvas");
-  c.width = W; c.height = h;
-  const ctx = c.getContext("2d");
-  ctx.fillStyle = "#fff"; ctx.fillRect(0,0,W,h);
-  ctx.fillStyle = "#000";
-  ctx.font = FONT();                                   // <— use function
-  ctx.textBaseline = "top";
-
-  let y = PADDING;
-  for (const l of lines) {
-    const w = ctx.measureText(l).width;
-    const x = (W - w) / 2;
-    ctx.fillText(l, x, y);
-    y += LINE;
-  }
-  return c.toDataURL("image/png");
-}
+      console.log("client PNG height =", h, "lines =", lines.length);
+      return c.toDataURL("image/png");
+    }
   </script>
 </body>
 </html>
