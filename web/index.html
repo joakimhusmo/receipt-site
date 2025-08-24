@@ -24,14 +24,15 @@
   <div class="row">
     <button id="btnPlain">Print (built-in font)</button>
     <button id="btnCustom">Print (custom font)</button>
+    <button id="btnCustomVert">Print (vertical custom)</button>
   </div>
 
   <p id="status"></p>
 
   <script>
     // === print sizing (adjust here) =========================================
-    let FONT_SIZE = 48;                 // <— requested size
-    let LINE      = 64;                 // <— target line height (80–85 range)
+    let FONT_SIZE = 100;                 // <— requested size
+    let LINE      = 135;                 // <— target line height (80–85 range)
     const W       = 576;                // receipt width in dots (80mm paper)
     const FONT_FAMILY = "NewFont";
     const FONT = () => `bold ${FONT_SIZE}px ${FONT_FAMILY}`;
@@ -82,6 +83,72 @@
         statusEl.textContent = "Error: " + e;
       }
     };
+
+    // ---- Vertical custom-font print (one long line down the paper) ----
+btnCustomVert.onclick = async () => {
+  try {
+    const toPrint = msgEl.value;
+    const png = await textToVerticalPngDataURL(toPrint);
+    const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ png })
+    });
+    const j = await r.json();
+    statusEl.textContent = j.ok ? `Printed (vertical) ✅` : `Error: ${j.error}`;
+  } catch (e) {
+    statusEl.textContent = "Error: " + e;
+  }
+};
+
+/**
+ * Render text to a horizontal offscreen canvas, then rotate it 90°
+ * so it prints as one vertical line down the receipt.
+ */
+async function textToVerticalPngDataURL(text) {
+  await document.fonts.ready;
+
+  const W         = 576;   // paper width
+  const FONT_SIZE = 48;    // adjust as you like
+  const LINE      = 64;
+  const PADDING   = 24;
+
+  // 1) Source canvas with text laid out horizontally
+  const src = document.createElement("canvas");
+  const m   = src.getContext("2d");
+  m.font = `bold ${FONT_SIZE}px NewFont`;
+  m.textBaseline = "top";
+
+  const t = (text || "");
+  const textWidth = Math.ceil(m.measureText(t).width);
+
+  src.width  = PADDING * 2 + textWidth;
+  src.height = LINE;
+
+  m.fillStyle = "#fff";
+  m.fillRect(0, 0, src.width, src.height);
+  m.fillStyle = "#000";
+  const y = Math.max(0, (LINE - FONT_SIZE) / 2);
+  m.fillText(t, PADDING, y);
+
+  // 2) Destination canvas (rotate text vertically)
+  const dst = document.createElement("canvas");
+  dst.width  = W;
+  dst.height = src.width;
+
+  const d = dst.getContext("2d");
+  d.fillStyle = "#fff";
+  d.fillRect(0, 0, dst.width, dst.height);
+
+  d.save();
+  d.translate(0, dst.height);
+  d.rotate(-Math.PI / 2);
+  const xCentered = (W - src.height) / 2;
+  d.drawImage(src, -dst.height, xCentered);
+  d.restore();
+
+  return dst.toDataURL("image/png");
+}
 
     // --- Render wrapped, centered text to a canvas using NewFont ------------
     async function textToPngDataURL(text) {
