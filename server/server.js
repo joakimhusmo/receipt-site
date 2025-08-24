@@ -41,6 +41,13 @@ app.post("/print/:locationId", (req, res) => {
   if (typeof req.body.text === "string") payload.text = req.body.text.slice(0, 2000);
   if (typeof req.body.png === "string")  payload.png  = req.body.png;
 
+  // 👇 Add these logs
+  console.log("=== Print Request ===");
+  console.log("Location:", locationId);
+  console.log("Has Text:", !!payload.text);
+  console.log("Has PNG:", !!payload.png);
+  console.log("=====================");
+
   if (!payload.text && !payload.png) {
     return res.status(400).json({ error: "No text or png" });
   }
