@@ -21,10 +21,10 @@
 
     <script>
       // ===== Tunables for layout on the 80mm roll =====
-      let FONT_SIZE = 84;      // adjust if you want bigger/smaller glyphs
+      let FONT_SIZE = 120;      // adjust if you want bigger/smaller glyphs
       let LINE = 90;           // vertical spacing between lines
-      const W = 576;           // print width in dots (≈80mm printers)
-      const PADDING = 24;
+      const W = 544;           // print width in dots (≈80mm printers)
+      const PADDING = 28;
 
       // Cloud routing
       const LOCATION_ID = "oslo-gallery-1";
@@ -65,22 +65,43 @@
 
         // measure/wrap
         const m = document.createElement("canvas").getContext("2d");
-        m.font = FONT;
+m.font = FONT;
 
-        const words = (text || "").split(/\s+/);
-        const lines = [];
-        let line = "";
+const MAX = W - PADDING * 2;
+const tokens = (text || "").split(/\s+/).filter(Boolean);
 
-        for (const w of words) {
-          const t = line ? line + " " + w : w;
-          if (m.measureText(t).width > (W - PADDING * 2)) {
-            if (line) lines.push(line);
-            line = w;
-          } else {
-            line = t;
-          }
-        }
-        if (line) lines.push(line);
+const lines = [];
+let line = "";
+
+function pushLine(s) { if (s) lines.push(s); }
+
+for (const tok of tokens) {
+  // If token fits on the current line with a preceding space
+  if (line && m.measureText(line + " " + tok).width <= MAX) {
+    line = line + " " + tok;
+    continue;
+  }
+  // If token fits by itself on a new line
+  if (m.measureText(tok).width <= MAX) {
+    pushLine(line);
+    line = tok;
+    continue;
+  }
+  // Token too long: wrap by characters
+  pushLine(line);
+  line = "";
+  let seg = "";
+  for (const ch of [...tok]) {
+    if (m.measureText(seg + ch).width > MAX) {
+      lines.push(seg);
+      seg = ch;
+    } else {
+      seg += ch;
+    }
+  }
+  line = seg;
+}
+if (line) lines.push(line);
 
         // paint
         const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
