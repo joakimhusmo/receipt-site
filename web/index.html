@@ -22,166 +22,142 @@
     <div id="status" aria-live="polite"></div>
 
     <script>
-      // ===================== Tunables / constants =====================
-      // Adjust these; the vertical renderer will use as much paper length as needed.
-      let FONT_SIZE = 130;     // try 110–130 if you want bigger glyphs
-      let LINE = 175;          // increase if lines touch (e.g. 150–170 for very large glyphs)
-      const W = 576;           // receipt width in dots (80mm printers are ~576 dots wide)
-      const PADDING = 24;
+  // ===================== Tunables / constants =====================
+  let FONT_SIZE = 100;     // adjust for glyph size
+  let LINE = 135;          // adjust for spacing between glyphs
+  const W = 576;           // receipt width in dots (~80mm)
+  const PADDING = 24;
 
-      // Routing: location ID used by your cloud service to route to the right agent
-      const LOCATION_ID = "oslo-gallery-1"; // change if needed
-      const API_BASE = "";                   // same-origin (Render web service)
+  const LOCATION_ID = "oslo-gallery-1";
+  const API_BASE = "";
 
-      // Elements
-      const statusEl = document.getElementById("status");
-      const msgEl = document.getElementById("msg");
-      const btnPlain = document.getElementById("btnPlain");
-      const btnCustom = document.getElementById("btnCustom");
-      const btnVertical = document.getElementById("btnVertical");
+  const statusEl = document.getElementById("status");
+  const msgEl = document.getElementById("msg");
+  const btnPlain = document.getElementById("btnPlain");
+  const btnCustom = document.getElementById("btnCustom");
+  const btnVertical = document.getElementById("btnVertical");
 
-      // Helper for status messages
-      function setOk(msg)  { statusEl.textContent = msg; statusEl.className = "ok"; }
-      function setErr(msg) { statusEl.textContent = msg; statusEl.className = "err"; }
+  function setOk(msg)  { statusEl.textContent = msg; statusEl.className = "ok"; }
+  function setErr(msg) { statusEl.textContent = msg; statusEl.className = "err"; }
 
-      // ===================== Built-in text endpoint =====================
-      btnPlain.onclick = async () => {
-        try {
-          const text = String(msgEl.value ?? "").slice(0, 2000);
-          if (!text.trim()) { setErr("Empty text"); return; }
+  // ===================== Built-in text endpoint =====================
+  btnPlain.onclick = async () => {
+    try {
+      const text = String(msgEl.value ?? "").slice(0, 2000);
+      if (!text.trim()) { setErr("Empty text"); return; }
+      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const j = await r.json();
+      j.ok ? setOk("Printed (built-in) ✅") : setErr("Error: " + j.error);
+    } catch (e) { setErr("Error: " + e); }
+  };
 
-          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text })
-          });
-          const j = await r.json();
-          j.ok ? setOk("Printed (built-in) ✅") : setErr("Error: " + j.error);
-        } catch (e) { setErr("Error: " + e); }
-      };
+  // ===================== Horizontal custom font (PNG) =====================
+  btnCustom.onclick = async () => {
+    try {
+      const toPrint = msgEl.value;
+      const png = await textToPngDataURL(toPrint);
+      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ png })
+      });
+      const j = await r.json();
+      j.ok ? setOk("Printed (custom font) ✅") : setErr("Error: " + j.error);
+    } catch (e) { setErr("Error: " + e); }
+  };
 
-      // ===================== Horizontal custom font (PNG) =====================
-      btnCustom.onclick = async () => {
-        try {
-          const toPrint = msgEl.value;
-          const png = await textToPngDataURL(toPrint);
-          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ png })
-          });
-          const j = await r.json();
-          j.ok ? setOk("Printed (custom font) ✅") : setErr("Error: " + j.error);
-        } catch (e) { setErr("Error: " + e); }
-      };
+  // ===================== Vertical custom font (single column down roll) =====================
+  btnVertical.onclick = async () => {
+    try {
+      const toPrint = msgEl.value;
+      const png = await textToVerticalPngDataURL(toPrint);
+      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ png })
+      });
+      const j = await r.json();
+      j.ok ? setOk("Printed (vertical) ✅") : setErr("Error: " + j.error);
+    } catch (e) { setErr("Error: " + e); }
+  };
 
-      // ===================== Vertical custom font (PNG) =====================
-      btnVertical.onclick = async () => {
-        try {
-          const toPrint = msgEl.value;
-          const png = await verticalTextToPngDataURL(toPrint);
-          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ png })
-          });
-          const j = await r.json();
-          j.ok ? setOk("Printed (vertical) ✅") : setErr("Error: " + j.error);
-        } catch (e) { setErr("Error: " + e); }
-      };
+  // ===================== Rendering helpers =====================
 
-      // ===================== Rendering helpers =====================
+  // Horizontal canvas builder (for the normal custom button)
+  async function makeHorizontalCanvas(text) {
+    await document.fonts.ready;
+    const FONT = `bold ${FONT_SIZE}px NewFont`;
 
-      // Build a horizontal text canvas using NewFont; returns a CANVAS element.
-      async function makeHorizontalCanvas(text) {
-        await document.fonts.ready; // ensure NewFont is available
+    const m = document.createElement("canvas").getContext("2d");
+    m.font = FONT;
 
-        const FONT_FAMILY = "NewFont";
-        const FONT = `bold ${FONT_SIZE}px ${FONT_FAMILY}`;
+    const words = (text || "").split(/\s+/);
+    const lines = [];
+    let line = "";
 
-        // Measure/wrap
-        const m = document.createElement("canvas").getContext("2d");
-        m.font = FONT;
-
-        const words = (text || "").split(/\s+/);
-        const lines = [];
-        let line = "";
-
-        for (const w of words) {
-          const t = line ? line + " " + w : w;
-          if (m.measureText(t).width > (W - PADDING * 2)) {
-            if (line) lines.push(line);
-            line = w;
-          } else {
-            line = t;
-          }
-        }
+    for (const w of words) {
+      const t = line ? line + " " + w : w;
+      if (m.measureText(t).width > (W - PADDING * 2)) {
         if (line) lines.push(line);
-
-        const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
-
-        // Draw
-        const c = document.createElement("canvas");
-        c.width = W;
-        c.height = H;
-        const ctx = c.getContext("2d");
-
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, W, H);
-
-        ctx.fillStyle = "#000";
-        ctx.font = FONT;
-        ctx.textBaseline = "top";
-
-        let y = PADDING;
-        for (const l of lines) {
-          const w = ctx.measureText(l).width;
-          const x = (W - w) / 2;
-          ctx.fillText(l, x, y);
-          y += LINE;
-        }
-
-        return c; // horizontal canvas with text
+        line = w;
+      } else {
+        line = t;
       }
+    }
+    if (line) lines.push(line);
 
-      // Horizontal → PNG (used by the custom horizontal button)
-      async function textToPngDataURL(text) {
-        const c = await makeHorizontalCanvas(text);
-        return c.toDataURL("image/png");
-      }
+    const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
 
-      // Vertical renderer: rotate the horizontal canvas −90° so text flows down the paper.
-      async function verticalTextToPngDataURL(text) {
-    // 1) Build the normal horizontal canvas (W × H)
-    const temp = await makeHorizontalCanvas(text);   // width: W (≈576), height: H (as needed)
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top";
 
-    // 2) Final canvas keeps the same dimensions: wide = W, tall = H
-    const final = document.createElement("canvas");
-    final.width  = temp.width;   // W
-    final.height = temp.height;  // H
+    let y = PADDING;
+    for (const l of lines) {
+      const w = ctx.measureText(l).width;
+      const x = (W - w) / 2;
+      ctx.fillText(l, x, y);
+      y += LINE;
+    }
 
-    const ctx = final.getContext("2d");
-
-    // white background
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, final.width, final.height);
-
-    // 3) Rotate CLOCKWISE 90° around the left edge
-    //    Translate to the right by the canvas width, then rotate.
-    ctx.save();
-    ctx.translate(final.width, 0);
-    ctx.rotate(Math.PI / 2);
-
-    // After that, drawing at (0,0) puts the temp image at the top,
-    // flowing DOWN the paper (i.e., along its length).
-    ctx.drawImage(temp, 0, 0);
-    ctx.restore();
-
-    // OPTIONAL: preview what will be sent to the printer
-    // window.open(final.toDataURL("image/png"), "_blank");
-
-    return final.toDataURL("image/png");
+    return c;
   }
-    </script>
+
+  async function textToPngDataURL(text) {
+    const c = await makeHorizontalCanvas(text);
+    return c.toDataURL("image/png");
+  }
+
+  // Vertical renderer: each character stacked in a single column
+  async function textToVerticalPngDataURL(text) {
+    await document.fonts.ready;
+    const FONT = `bold ${FONT_SIZE}px NewFont`;
+
+    const chars = (text || "").split("");
+    const H = chars.length * LINE + PADDING * 2;
+    const c = document.createElement("canvas");
+    c.width = W;     // full paper width available
+    c.height = H;
+
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top"; ctx.textAlign = "center";
+
+    let y = PADDING;
+    for (const ch of chars) {
+      ctx.fillText(ch, c.width / 2, y); // center horizontally, step vertically
+      y += LINE;
+    }
+
+    return c.toDataURL("image/png");
+  }
+</script>
   </body>
 </html>
