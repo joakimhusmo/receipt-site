@@ -26,7 +26,7 @@ label {
   padding: 12px 14px;
   border: 1px solid #bbb;
   border-radius: 6px;
-  font: 28px "NewFont", system-ui, sans-serif; /* live preview with NewFont */
+  font: 28px "NewFont", system-ui, sans-serif;   /* live preview in your custom font */
   font-feature-settings: "liga" 1, "clig" 1;
 }
 

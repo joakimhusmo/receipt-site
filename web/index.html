@@ -14,150 +14,99 @@
     <input id="msg" autocomplete="off" />
 
     <div class="row">
-      <button id="btnPlain">Print (built-in font)</button>
       <button id="btnCustom">Print (custom font)</button>
-      <button id="btnVertical">Print (vertical custom)</button>
     </div>
 
     <div id="status" aria-live="polite"></div>
 
     <script>
-  // ===================== Tunables / constants =====================
-  let FONT_SIZE = 100;     // adjust for glyph size
-  let LINE = 135;          // adjust for spacing between glyphs
-  const W = 576;           // receipt width in dots (~80mm)
-  const PADDING = 24;
+      // ===== Tunables for layout on the 80mm roll =====
+      let FONT_SIZE = 120;      // adjust if you want bigger/smaller glyphs
+      let LINE = 90;           // vertical spacing between lines
+      const W = 576;           // print width in dots (≈80mm printers)
+      const PADDING = 24;
 
-  const LOCATION_ID = "oslo-gallery-1";
-  const API_BASE = "";
+      // Cloud routing
+      const LOCATION_ID = "oslo-gallery-1";
+      const API_BASE = "";     // same origin (Render service)
 
-  const statusEl = document.getElementById("status");
-  const msgEl = document.getElementById("msg");
-  const btnPlain = document.getElementById("btnPlain");
-  const btnCustom = document.getElementById("btnCustom");
-  const btnVertical = document.getElementById("btnVertical");
+      // UI
+      const statusEl = document.getElementById("status");
+      const msgEl = document.getElementById("msg");
+      const btnCustom = document.getElementById("btnCustom");
+      const setOk  = (m) => { statusEl.textContent = m; statusEl.className = "ok"; };
+      const setErr = (m) => { statusEl.textContent = m; statusEl.className = "err"; };
 
-  function setOk(msg)  { statusEl.textContent = msg; statusEl.className = "ok"; }
-  function setErr(msg) { statusEl.textContent = msg; statusEl.className = "err"; }
+      // ---------- Print using the custom font (render to PNG) ----------
+      btnCustom.onclick = async () => {
+        try {
+          const toPrint = String(msgEl.value ?? "");
+          if (!toPrint.trim()) { setErr("Empty text"); return; }
 
-  // ===================== Built-in text endpoint =====================
-  btnPlain.onclick = async () => {
-    try {
-      const text = String(msgEl.value ?? "").slice(0, 2000);
-      if (!text.trim()) { setErr("Empty text"); return; }
-      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-      });
-      const j = await r.json();
-      j.ok ? setOk("Printed (built-in) ✅") : setErr("Error: " + j.error);
-    } catch (e) { setErr("Error: " + e); }
-  };
+          const png = await textToPngDataURL(toPrint);
 
-  // ===================== Horizontal custom font (PNG) =====================
-  btnCustom.onclick = async () => {
-    try {
-      const toPrint = msgEl.value;
-      const png = await textToPngDataURL(toPrint);
-      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ png })
-      });
-      const j = await r.json();
-      j.ok ? setOk("Printed (custom font) ✅") : setErr("Error: " + j.error);
-    } catch (e) { setErr("Error: " + e); }
-  };
+          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ png })
+          });
 
-  // ===================== Vertical custom font (single column down roll) =====================
-  btnVertical.onclick = async () => {
-    try {
-      const toPrint = msgEl.value;
-      const png = await textToVerticalPngDataURL(toPrint);
-      const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ png })
-      });
-      const j = await r.json();
-      j.ok ? setOk("Printed (vertical) ✅") : setErr("Error: " + j.error);
-    } catch (e) { setErr("Error: " + e); }
-  };
+          const j = await r.json();
+          j.ok ? setOk("Printed (custom font) ✅") : setErr("Error: " + j.error);
+        } catch (e) {
+          setErr("Error: " + e);
+        }
+      };
 
-  // ===================== Rendering helpers =====================
+      // ---------- Canvas helpers ----------
+      async function makeHorizontalCanvas(text) {
+        await document.fonts.ready;
+        const FONT = `bold ${FONT_SIZE}px NewFont`;
 
-  // Horizontal canvas builder (for the normal custom button)
-  async function makeHorizontalCanvas(text) {
-    await document.fonts.ready;
-    const FONT = `bold ${FONT_SIZE}px NewFont`;
+        // measure/wrap
+        const m = document.createElement("canvas").getContext("2d");
+        m.font = FONT;
 
-    const m = document.createElement("canvas").getContext("2d");
-    m.font = FONT;
+        const words = (text || "").split(/\s+/);
+        const lines = [];
+        let line = "";
 
-    const words = (text || "").split(/\s+/);
-    const lines = [];
-    let line = "";
-
-    for (const w of words) {
-      const t = line ? line + " " + w : w;
-      if (m.measureText(t).width > (W - PADDING * 2)) {
+        for (const w of words) {
+          const t = line ? line + " " + w : w;
+          if (m.measureText(t).width > (W - PADDING * 2)) {
+            if (line) lines.push(line);
+            line = w;
+          } else {
+            line = t;
+          }
+        }
         if (line) lines.push(line);
-        line = w;
-      } else {
-        line = t;
+
+        // paint
+        const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
+        const c = document.createElement("canvas");
+        c.width = W;
+        c.height = H;
+
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top";
+
+        let y = PADDING;
+        for (const l of lines) {
+          const w = ctx.measureText(l).width;
+          const x = (W - w) / 2;          // centered
+          ctx.fillText(l, x, y);
+          y += LINE;
+        }
+
+        return c;
       }
-    }
-    if (line) lines.push(line);
 
-    const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
-    const c = document.createElement("canvas");
-    c.width = W;
-    c.height = H;
-
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top";
-
-    let y = PADDING;
-    for (const l of lines) {
-      const w = ctx.measureText(l).width;
-      const x = (W - w) / 2;
-      ctx.fillText(l, x, y);
-      y += LINE;
-    }
-
-    return c;
-  }
-
-  async function textToPngDataURL(text) {
-    const c = await makeHorizontalCanvas(text);
-    return c.toDataURL("image/png");
-  }
-
-  // Vertical renderer: each character stacked in a single column
-  async function textToVerticalPngDataURL(text) {
-    await document.fonts.ready;
-    const FONT = `bold ${FONT_SIZE}px NewFont`;
-
-    const chars = (text || "").split("");
-    const H = chars.length * LINE + PADDING * 2;
-    const c = document.createElement("canvas");
-    c.width = W;     // full paper width available
-    c.height = H;
-
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
-    ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top"; ctx.textAlign = "center";
-
-    let y = PADDING;
-    for (const ch of chars) {
-      ctx.fillText(ch, c.width / 2, y); // center horizontally, step vertically
-      y += LINE;
-    }
-
-    return c.toDataURL("image/png");
-  }
-</script>
+      async function textToPngDataURL(text) {
+        const c = await makeHorizontalCanvas(text);
+        return c.toDataURL("image/png");
+      }
+    </script>
   </body>
 </html>
