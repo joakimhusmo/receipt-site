@@ -1,133 +1,89 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Art Receipt Printer</title>
-    <link rel="stylesheet" href="/style.css">
-  </head>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Письмо к лесу и солнцу</title>
 
-  <body>
-    <h1>Type &amp; Print</h1>
+  <!-- Google font for UI chrome -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-    <label for="msg">Message</label>
-    <input id="msg" autocomplete="off" />
+  <!-- Your styles (now contains ALL CSS including @font-face) -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Type & Print</h1>
 
-    <div class="row">
-      <button id="btnCustom">Print (custom font)</button>
-    </div>
+    <label for="msg">Что бы ты хотел сказать?</label>
+    <input id="msg" type="text" placeholder="Type here…" />
 
-    <div id="status" aria-live="polite"></div>
+    <button id="btnCustom">Толкни меня!</button>
 
-    <script>
-      // ===== Tunables for layout on the 80mm roll =====
-      let FONT_SIZE = 120;      // adjust if you want bigger/smaller glyphs
-      let LINE = 90;           // vertical spacing between lines
-      const W = 544;           // print width in dots (≈80mm printers)
-      const PADDING = 28;
+    <div id="statusEl" aria-live="polite"></div>
+  </div>
 
-      // Cloud routing
-      const LOCATION_ID = "oslo-gallery-1";
-      const API_BASE = "";     // same origin (Render service)
+  <script>
+// ---------- Tunables ----------
+// These are the only numbers you should tweak for size/spacing.
+// 80mm paper is ~576 dots wide on most Epson/TM printers.
+const W = 544;          // receipt width in dots (80mm)
+const PADDING = 28;     // horizontal padding in pixels/dots
+let FONT_SIZE = 120;     // font size in pixels (preview + print)
+let LINE = 90;          // line height in pixels
 
-      // UI
-      const statusEl = document.getElementById("status");
-      const msgEl = document.getElementById("msg");
-      const btnCustom = document.getElementById("btnCustom");
-      const setOk  = (m) => { statusEl.textContent = m; statusEl.className = "ok"; };
-      const setErr = (m) => { statusEl.textContent = m; statusEl.className = "err"; };
+// --- Render wrapped, centered text to a canvas using NewFont ---
+async function textToPngDataURL(text) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-      // ---------- Print using the custom font (render to PNG) ----------
-      btnCustom.onclick = async () => {
-        try {
-          const toPrint = String(msgEl.value ?? "");
-          if (!toPrint.trim()) { setErr("Empty text"); return; }
+    ctx.font = `${FONT_SIZE}px NewFont`;
+    ctx.textBaseline = "top";
 
-          const png = await textToPngDataURL(toPrint);
+    // Calculate maximum width for text, considering padding
+    const maxWidth = W - 2 * PADDING;
 
-          const r = await fetch(`${API_BASE}/print/${encodeURIComponent(LOCATION_ID)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ png })
-          });
+    // Break text into words
+    const words = text.split(" ");
+    let lines = [];
+    let currentLine = words[0];
 
-          const j = await r.json();
-          j.ok ? setOk("Printed (custom font) ✅") : setErr("Error: " + j.error);
-        } catch (e) {
-          setErr("Error: " + e);
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxWidth) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
         }
-      };
-
-      // ---------- Canvas helpers ----------
-      async function makeHorizontalCanvas(text) {
-        await document.fonts.ready;
-        const FONT = `bold ${FONT_SIZE}px NewFont`;
-
-        // measure/wrap
-        const m = document.createElement("canvas").getContext("2d");
-m.font = FONT;
-
-const MAX = W - PADDING * 2;
-const tokens = (text || "").split(/\s+/).filter(Boolean);
-
-const lines = [];
-let line = "";
-
-function pushLine(s) { if (s) lines.push(s); }
-
-for (const tok of tokens) {
-  // If token fits on the current line with a preceding space
-  if (line && m.measureText(line + " " + tok).width <= MAX) {
-    line = line + " " + tok;
-    continue;
-  }
-  // If token fits by itself on a new line
-  if (m.measureText(tok).width <= MAX) {
-    pushLine(line);
-    line = tok;
-    continue;
-  }
-  // Token too long: wrap by characters
-  pushLine(line);
-  line = "";
-  let seg = "";
-  for (const ch of [...tok]) {
-    if (m.measureText(seg + ch).width > MAX) {
-      lines.push(seg);
-      seg = ch;
-    } else {
-      seg += ch;
     }
-  }
-  line = seg;
+    lines.push(currentLine);
+
+    // Set canvas size based on lines
+    canvas.width = W;
+    canvas.height = lines.length * LINE;
+
+    // Fill background white
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Set font again after resizing
+    ctx.font = `${FONT_SIZE}px NewFont`;
+    ctx.fillStyle = "#000";
+    ctx.textBaseline = "top";
+
+    // Draw each line centered within (W - 2*PADDING)
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineWidth = ctx.measureText(line).width;
+        const x = PADDING + (maxWidth - lineWidth) / 2;
+        const y = i * LINE;
+        ctx.fillText(line, x, y);
+    }
+
+    return canvas.toDataURL("image/png");
 }
-if (line) lines.push(line);
-
-        // paint
-        const H = PADDING + Math.max(1, lines.length) * LINE + PADDING;
-        const c = document.createElement("canvas");
-        c.width = W;
-        c.height = H;
-
-        const ctx = c.getContext("2d");
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = "#000"; ctx.font = FONT; ctx.textBaseline = "top";
-
-        let y = PADDING;
-        for (const l of lines) {
-          const w = ctx.measureText(l).width;
-          const x = (W - w) / 2;          // centered
-          ctx.fillText(l, x, y);
-          y += LINE;
-        }
-
-        return c;
-      }
-
-      async function textToPngDataURL(text) {
-        const c = await makeHorizontalCanvas(text);
-        return c.toDataURL("image/png");
-      }
-    </script>
-  </body>
+</script>
+</body>
 </html>
