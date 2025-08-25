@@ -4,46 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Art Receipt Printer</title>
-
-    <!-- Simple, page-local styles -->
-    <style>
-      /* Load your custom font */
-      @font-face {
-        font-family: "NewFont";
-        src: url("/web/fonts/NewFont-Regular.otf") format("opentype");
-        font-display: swap;
-      }
-
-      :root { color-scheme: light; }
-      body {
-        font: 16px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        line-height: 1.35;
-        margin: 24px;
-        color: #111;
-      }
-      h1 { font-size: 32px; margin: 0 0 16px; }
-      label { display: block; margin: 12px 0 6px; font-weight: 600; }
-      #msg {
-        width: min(100%, 820px);
-        padding: 12px 14px;
-        border: 1px solid #bbb;
-        border-radius: 6px;
-        font: 28px "NewFont", system-ui, sans-serif; /* live preview with NewFont */
-        font-feature-settings: "liga" 1, "clig" 1;
-      }
-      .row { margin-top: 14px; display: flex; gap: 12px; flex-wrap: wrap; }
-      button {
-        padding: 10px 14px;
-        border-radius: 6px;
-        border: 1px solid #999;
-        background: #fafafa;
-        cursor: pointer;
-        font-weight: 600;
-      }
-      button:hover { background: #f0f0f0; }
-      #status { margin-top: 12px; font-weight: 600; }
-      .ok { color: #0a7a29; } .err { color: #b21f1f; }
-    </style>
+    <link rel="stylesheet" href="/style.css">
   </head>
 
   <body>
@@ -63,8 +24,8 @@
     <script>
       // ===================== Tunables / constants =====================
       // Adjust these; the vertical renderer will use as much paper length as needed.
-      let FONT_SIZE = 100;     // try 110–130 if you want bigger glyphs
-      let LINE = 135;          // increase if lines touch (e.g. 150–170 for very large glyphs)
+      let FONT_SIZE = 130;     // try 110–130 if you want bigger glyphs
+      let LINE = 175;          // increase if lines touch (e.g. 150–170 for very large glyphs)
       const W = 576;           // receipt width in dots (80mm printers are ~576 dots wide)
       const PADDING = 24;
 
@@ -191,28 +152,36 @@
 
       // Vertical renderer: rotate the horizontal canvas −90° so text flows down the paper.
       async function verticalTextToPngDataURL(text) {
-        const temp = await makeHorizontalCanvas(text); // width: W, height: H
+    // 1) Build the normal horizontal canvas (W × H)
+    const temp = await makeHorizontalCanvas(text);   // width: W (≈576), height: H (as needed)
 
-        const final = document.createElement("canvas");
-        final.width = temp.width;     // 576
-        final.height = temp.height;   // as tall as needed
+    // 2) Final canvas keeps the same dimensions: wide = W, tall = H
+    const final = document.createElement("canvas");
+    final.width  = temp.width;   // W
+    final.height = temp.height;  // H
 
-        const ctx = final.getContext("2d");
+    const ctx = final.getContext("2d");
 
-        // white background
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, final.width, final.height);
+    // white background
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, final.width, final.height);
 
-        // Core: move origin down, rotate CCW, then draw temp at (0,0)
-        ctx.translate(0, final.height);
-        ctx.rotate(-Math.PI / 2);
-        ctx.drawImage(temp, 0, 0);
+    // 3) Rotate CLOCKWISE 90° around the left edge
+    //    Translate to the right by the canvas width, then rotate.
+    ctx.save();
+    ctx.translate(final.width, 0);
+    ctx.rotate(Math.PI / 2);
 
-        // For debugging, open the PNG in a tab:
-        // window.open(final.toDataURL("image/png"), "_blank");
+    // After that, drawing at (0,0) puts the temp image at the top,
+    // flowing DOWN the paper (i.e., along its length).
+    ctx.drawImage(temp, 0, 0);
+    ctx.restore();
 
-        return final.toDataURL("image/png");
-      }
+    // OPTIONAL: preview what will be sent to the printer
+    // window.open(final.toDataURL("image/png"), "_blank");
+
+    return final.toDataURL("image/png");
+  }
     </script>
   </body>
 </html>
