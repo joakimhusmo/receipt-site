@@ -39,31 +39,47 @@
   const btnCustom = document.getElementById("btnCustom");
   const statusEl  = document.getElementById("statusEl");
 
+  async function sendPngToServer(png, loc) {
+    // 1) try /print-image/:loc
+    let r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(loc)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ png })
+    });
+
+    // 2) if that route doesn't exist, retry as /print-image with location in the body
+    if (r.status === 404) {
+      r = await fetch(`${API_BASE}/print-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ png, location: loc })
+      });
+    }
+    return r;
+  }
+
   // ---------- Button handler (custom font -> PNG -> server) ----------
-  btnCustom.onclick = async () => {
+   btnCustom.onclick = async () => {
     const text = String(msgEl.value || "").trim();
     if (!text) {
       statusEl.className = "error";
-      statusEl.textContent = "Введите сообщение.";
+      statusEl.textContent = "Skriv en melding.";
       return;
     }
     try {
       const png = await textToPngDataURL(text);
-      const r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(LOCATION_ID)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ png })
-      });
-      const j = await r.json().catch(() => ({}));
+      const r   = await sendPngToServer(png, LOCATION_ID);
+      const j   = await r.json().catch(() => ({}));
+
       if (r.ok && j && j.ok !== false) {
         statusEl.className = "success";
-        statusEl.textContent = "Напечатано ✓";
+        statusEl.textContent = "Trykket ✓";
       } else {
         throw new Error(j && j.error ? j.error : `HTTP ${r.status}`);
       }
     } catch (e) {
       statusEl.className = "error";
-      statusEl.textContent = `Ошибка печати: ${e.message || e}`;
+      statusEl.textContent = `Utskriftsfeil: ${e.message || e}`;
       console.error(e);
     }
   };
