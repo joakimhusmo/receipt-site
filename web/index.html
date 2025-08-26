@@ -1,14 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Письмо к лесу и солнцу</title>
 
-  <!-- Google font for UI chrome -->
+  <!-- UI font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-
-  <!-- Your styles (now contains ALL CSS including @font-face) -->
+  <!-- All site styles (+ @font-face for NewFont) -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -24,66 +23,96 @@
   </div>
 
   <script>
-// ---------- Tunables ----------
-// These are the only numbers you should tweak for size/spacing.
-// 80mm paper is ~576 dots wide on most Epson/TM printers.
-const W = 544;          // receipt width in dots (80mm)
-const PADDING = 28;     // horizontal padding in pixels/dots
-let FONT_SIZE = 120;     // font size in pixels (preview + print)
-let LINE = 90;          // line height in pixels
+  // ---------- Tunables ----------
+  // 80mm paper is ~576 dots wide on most Epson/TM printers.
+  const W = 544;          // receipt width in dots
+  const PADDING = 28;     // horizontal padding
+  let   FONT_SIZE = 120;  // font size in px
+  let   LINE = 90;        // line height in px
 
-// --- Render wrapped, centered text to a canvas using NewFont ---
-async function textToPngDataURL(text) {
+  // ---------- Config ----------
+  const API_BASE = window.location.origin;
+  const LOCATION_ID =
+    new URLSearchParams(location.search).get("loc") || "oslo-gallery-1";
+
+  const msgEl     = document.getElementById("msg");
+  const btnCustom = document.getElementById("btnCustom");
+  const statusEl  = document.getElementById("statusEl");
+
+  // ---------- Button handler (custom font -> PNG -> server) ----------
+  btnCustom.onclick = async () => {
+    const text = String(msgEl.value || "").trim();
+    if (!text) {
+      statusEl.className = "error";
+      statusEl.textContent = "Введите сообщение.";
+      return;
+    }
+    try {
+      const png = await textToPngDataURL(text);
+      const r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(LOCATION_ID)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ png })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j && j.ok !== false) {
+        statusEl.className = "success";
+        statusEl.textContent = "Напечатано ✓";
+      } else {
+        throw new Error(j && j.error ? j.error : `HTTP ${r.status}`);
+      }
+    } catch (e) {
+      statusEl.className = "error";
+      statusEl.textContent = `Ошибка печати: ${e.message || e}`;
+      console.error(e);
+    }
+  };
+
+  // ---------- Canvas renderer (NewFont) ----------
+  async function textToPngDataURL(text) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
+    // size pass (to measure & wrap)
     ctx.font = `${FONT_SIZE}px NewFont`;
     ctx.textBaseline = "top";
-
-    // Calculate maximum width for text, considering padding
     const maxWidth = W - 2 * PADDING;
 
-    // Break text into words
-    const words = text.split(" ");
-    let lines = [];
-    let currentLine = words[0];
-
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const width = ctx.measureText(currentLine + " " + word).width;
-        if (width < maxWidth) {
-            currentLine += " " + word;
-        } else {
-            lines.push(currentLine);
-            currentLine = word;
-        }
+    const words = text.split(/\s+/);
+    const lines = [];
+    let line = "";
+    for (const w of words) {
+      const test = line ? line + " " + w : w;
+      if (ctx.measureText(test).width <= maxWidth) {
+        line = test;
+      } else {
+        if (line) lines.push(line);
+        line = w;
+      }
     }
-    lines.push(currentLine);
+    if (line) lines.push(line);
 
-    // Set canvas size based on lines
+    // set canvas size
     canvas.width = W;
-    canvas.height = lines.length * LINE;
+    canvas.height = Math.max(1, lines.length) * LINE;
 
-    // Fill background white
+    // draw pass
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Set font again after resizing
     ctx.font = `${FONT_SIZE}px NewFont`;
     ctx.fillStyle = "#000";
     ctx.textBaseline = "top";
 
-    // Draw each line centered within (W - 2*PADDING)
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const lineWidth = ctx.measureText(line).width;
-        const x = PADDING + (maxWidth - lineWidth) / 2;
-        const y = i * LINE;
-        ctx.fillText(line, x, y);
+      const l = lines[i];
+      const w = ctx.measureText(l).width;
+      const x = PADDING + (maxWidth - w) / 2;
+      const y = i * LINE;
+      ctx.fillText(l, x, y);
     }
-
     return canvas.toDataURL("image/png");
-}
-</script>
+  }
+  </script>
 </body>
 </html>
