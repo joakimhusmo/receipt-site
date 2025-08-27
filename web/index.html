@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Letter to the Forest and the Sun</title>
 
-  <!-- UI font (for the page chrome, not the receipt print) -->
+  <!-- UI font (page chrome only) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-  <!-- All site styles (will include @font-face that maps NewFont -> SunandForest-Regular.otf
-       AND the full-page background image) -->
+  <!-- Site styles (includes @font-face for SunForest + background image) -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -17,7 +16,7 @@
     <h1></h1>
 
     <label for="msg"></label>
-    <input id="msg" type="text" placeholder="Write your letter here ... " />
+    <input id="msg" type="text" placeholder="Write your letter here …" />
 
     <button id="btnCustom">Print</button>
 
@@ -26,11 +25,10 @@
 
   <script>
     // ---------- Tunables ----------
-    // 80mm paper is ~576 dots wide on most Epson/TM printers.
-    const W        = 544;   // receipt width in dots (usable)
-    const PADDING  = 28;    // horizontal padding in dots/pixels
-    let   FONT_SIZE = 120;  // preview + print font size (px)
-    let   LINE      = 90;   // line height (px)
+    const W        = 544;  // usable receipt width (dots)
+    const PADDING  = 28;
+    let   FONT_SIZE = 120; // px
+    let   LINE      = 90;  // px
 
     // ---------- Config ----------
     const API_BASE = window.location.origin;
@@ -41,13 +39,14 @@
     const btnCustom = document.getElementById("btnCustom");
     const statusEl  = document.getElementById("statusEl");
 
-    // Try both /print-image/:loc and /print-image body {png, location}
     async function sendPngToServer(png, loc) {
+      // Try REST path version first
       let r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(loc)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ png })
       });
+      // Fallback to body-with-location
       if (r.status === 404) {
         r = await fetch(`${API_BASE}/print-image`, {
           method: "POST",
@@ -58,7 +57,6 @@
       return r;
     }
 
-    // ---------- Button handler (custom font -> PNG -> server) ----------
     btnCustom.onclick = async () => {
       const text = String(msgEl.value || "").trim();
       if (!text) {
@@ -84,12 +82,12 @@
       }
     };
 
-    // ---------- Canvas renderer (uses CSS @font-face family "NewFont") ----------
+    // Renders wrapped, centered text in your custom font -> PNG data URL
     async function textToPngDataURL(text) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
-      // measurement pass
+      // Measure with your new font family name
       ctx.font = `${FONT_SIZE}px SunForest`;
       ctx.textBaseline = "top";
       const maxWidth = W - 2 * PADDING;
@@ -108,14 +106,14 @@
       }
       if (line) lines.push(line);
 
-      // canvas size
       canvas.width = W;
       canvas.height = Math.max(1, lines.length) * LINE;
 
-      // draw pass
+      // White background
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // Draw pass
       ctx.font = `${FONT_SIZE}px SunForest`;
       ctx.fillStyle = "#000";
       ctx.textBaseline = "top";
@@ -127,6 +125,7 @@
         const y = i * LINE;
         ctx.fillText(l, x, y);
       }
+
       return canvas.toDataURL("image/png");
     }
   </script>

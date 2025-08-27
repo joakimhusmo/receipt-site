@@ -4,18 +4,18 @@
   font-display: swap;
 }
 
-/* General layout */
+/* Page chrome font + background image */
 body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 
-  /* Site background image (file lives in /web/Images) */
+  /* The image file is in /web/Images  — quoted path handles the space */
   background-image: url("./Images/ARVQ Bakgrunn.jpeg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-attachment: fixed; /* nice feel on desktops */
+  background-attachment: fixed;
 
-  color: #000000;
+  color: #000;
   margin: 0;
   min-height: 100vh;
   display: flex;
@@ -24,7 +24,7 @@ body {
   padding: 2rem;
 }
 
-/* Card container (kept your existing color) */
+/* Card */
 .container {
   background: #7affad;
   width: 100%;
@@ -34,15 +34,10 @@ body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-/* Title */
-h1 {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: #7a424200;
-}
+/* Title (kept empty visually) */
+h1 { margin: 0 0 1.5rem 0; color: transparent; }
 
-/* Label + input */
+/* Input */
 label {
   display: block;
   margin-bottom: 0.5rem;
@@ -60,36 +55,32 @@ label {
   outline: none;
   margin-bottom: 1.25rem;
 
-  /* show preview in your new custom font */
+  /* Preview in your custom font */
   font-family: "SunForest", system-ui, sans-serif;
   font-feature-settings: "liga" 1, "clig" 1;
 }
-
 #msg:focus {
   border-color: #0077ff;
   box-shadow: 0 0 0 2px rgba(0,119,255,0.15);
 }
 
-/* Button */
-button {
+/* Print button — centered under the input */
+#btnCustom {
+  display: block;
+  margin: 0 auto;
   font-size: 1rem;
   font-weight: 600;
   padding: 0.75rem 1.25rem;
   border-radius: 8px;
   border: none;
   background: #7a5858;
-  color: #000000;
+  color: #000;
   cursor: pointer;
   transition: background 0.15s ease;
 }
-button:hover {
-  background: #ff6b6b;
-}
+#btnCustom:hover { background: #ff6b6b; }
 
-/* Status text */
-#statusEl {
-  margin-top: 1rem;
-  font-weight: 500;
-}
-#statusEl.success { color: #16a34a; } /* green */
-#statusEl.error   { color: #dc2626; } /* red */
+/* Status */
+#statusEl { margin-top: 1rem; font-weight: 500; }
+#statusEl.success { color: #16a34a; }
+#statusEl.error   { color: #dc2626; }
