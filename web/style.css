@@ -1,13 +1,20 @@
 @font-face {
-  font-family: "NewFont";
-  src: url("./fonts/NewFont-Regular.otf") format("opentype");
+  font-family: "SunForest";
+  src: url("./fonts/SunandForest-Regular.otf") format("opentype");
   font-display: swap;
 }
 
 /* General layout */
 body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #7affad;
+
+  /* Site background image (file lives in /web/Images) */
+  background-image: url("./Images/ARVQ Bakgrunn.jpeg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed; /* nice feel on desktops */
+
   color: #000000;
   margin: 0;
   min-height: 100vh;
@@ -17,7 +24,7 @@ body {
   padding: 2rem;
 }
 
-/* Card container */
+/* Card container (kept your existing color) */
 .container {
   background: #7affad;
   width: 100%;
@@ -53,8 +60,8 @@ label {
   outline: none;
   margin-bottom: 1.25rem;
 
-  /* show preview in your custom font */
-  font-family: "NewFont", system-ui, sans-serif;
+  /* show preview in your new custom font */
+  font-family: "SunForest", system-ui, sans-serif;
   font-feature-settings: "liga" 1, "clig" 1;
 }
 

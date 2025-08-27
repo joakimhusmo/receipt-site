@@ -1,134 +1,134 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="no">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Письмо к лесу и солнцу</title>
+  <title>Letter to the Forest and the Sun</title>
 
-  <!-- UI font -->
+  <!-- UI font (for the page chrome, not the receipt print) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <!-- All site styles (+ @font-face for NewFont) -->
+
+  <!-- All site styles (will include @font-face that maps NewFont -> SunandForest-Regular.otf
+       AND the full-page background image) -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Письмо к лесу и солнцу</h1>
+    <h1></h1>
 
-    <label for="msg">Что бы ты хотел сказать?</label>
-    <input id="msg" type="text" placeholder="Type here…" />
+    <label for="msg"></label>
+    <input id="msg" type="text" placeholder="Write your letter here ... " />
 
-    <button id="btnCustom">Толкни меня!</button>
+    <button id="btnCustom">Print</button>
 
     <div id="statusEl" aria-live="polite"></div>
   </div>
 
   <script>
-  // ---------- Tunables ----------
-  // 80mm paper is ~576 dots wide on most Epson/TM printers.
-  const W = 544;          // receipt width in dots
-  const PADDING = 28;     // horizontal padding
-  let   FONT_SIZE = 120;  // font size in px
-  let   LINE = 90;        // line height in px
+    // ---------- Tunables ----------
+    // 80mm paper is ~576 dots wide on most Epson/TM printers.
+    const W        = 544;   // receipt width in dots (usable)
+    const PADDING  = 28;    // horizontal padding in dots/pixels
+    let   FONT_SIZE = 120;  // preview + print font size (px)
+    let   LINE      = 90;   // line height (px)
 
-  // ---------- Config ----------
-  const API_BASE = window.location.origin;
-  const LOCATION_ID =
-    new URLSearchParams(location.search).get("loc") || "oslo-gallery-1";
+    // ---------- Config ----------
+    const API_BASE = window.location.origin;
+    const LOCATION_ID =
+      new URLSearchParams(location.search).get("loc") || "oslo-gallery-1";
 
-  const msgEl     = document.getElementById("msg");
-  const btnCustom = document.getElementById("btnCustom");
-  const statusEl  = document.getElementById("statusEl");
+    const msgEl     = document.getElementById("msg");
+    const btnCustom = document.getElementById("btnCustom");
+    const statusEl  = document.getElementById("statusEl");
 
-  async function sendPngToServer(png, loc) {
-    // 1) try /print-image/:loc
-    let r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(loc)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ png })
-    });
-
-    // 2) if that route doesn't exist, retry as /print-image with location in the body
-    if (r.status === 404) {
-      r = await fetch(`${API_BASE}/print-image`, {
+    // Try both /print-image/:loc and /print-image body {png, location}
+    async function sendPngToServer(png, loc) {
+      let r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(loc)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ png, location: loc })
+        body: JSON.stringify({ png })
       });
-    }
-    return r;
-  }
-
-  // ---------- Button handler (custom font -> PNG -> server) ----------
-   btnCustom.onclick = async () => {
-    const text = String(msgEl.value || "").trim();
-    if (!text) {
-      statusEl.className = "error";
-      statusEl.textContent = "Skriv en melding.";
-      return;
-    }
-    try {
-      const png = await textToPngDataURL(text);
-      const r   = await sendPngToServer(png, LOCATION_ID);
-      const j   = await r.json().catch(() => ({}));
-
-      if (r.ok && j && j.ok !== false) {
-        statusEl.className = "success";
-        statusEl.textContent = "Trykket ✓";
-      } else {
-        throw new Error(j && j.error ? j.error : `HTTP ${r.status}`);
+      if (r.status === 404) {
+        r = await fetch(`${API_BASE}/print-image`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ png, location: loc })
+        });
       }
-    } catch (e) {
-      statusEl.className = "error";
-      statusEl.textContent = `Utskriftsfeil: ${e.message || e}`;
-      console.error(e);
+      return r;
     }
-  };
 
-  // ---------- Canvas renderer (NewFont) ----------
-  async function textToPngDataURL(text) {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    // size pass (to measure & wrap)
-    ctx.font = `${FONT_SIZE}px NewFont`;
-    ctx.textBaseline = "top";
-    const maxWidth = W - 2 * PADDING;
-
-    const words = text.split(/\s+/);
-    const lines = [];
-    let line = "";
-    for (const w of words) {
-      const test = line ? line + " " + w : w;
-      if (ctx.measureText(test).width <= maxWidth) {
-        line = test;
-      } else {
-        if (line) lines.push(line);
-        line = w;
+    // ---------- Button handler (custom font -> PNG -> server) ----------
+    btnCustom.onclick = async () => {
+      const text = String(msgEl.value || "").trim();
+      if (!text) {
+        statusEl.className = "error";
+        statusEl.textContent = "Skriv en melding.";
+        return;
       }
+      try {
+        const png = await textToPngDataURL(text);
+        const r   = await sendPngToServer(png, LOCATION_ID);
+        const j   = await r.json().catch(() => ({}));
+
+        if (r.ok && (j.ok !== false)) {
+          statusEl.className = "success";
+          statusEl.textContent = "Trykket ✓";
+        } else {
+          throw new Error(j && j.error ? j.error : `HTTP ${r.status}`);
+        }
+      } catch (e) {
+        statusEl.className = "error";
+        statusEl.textContent = `Utskriftsfeil: ${e.message || e}`;
+        console.error(e);
+      }
+    };
+
+    // ---------- Canvas renderer (uses CSS @font-face family "NewFont") ----------
+    async function textToPngDataURL(text) {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // measurement pass
+      ctx.font = `${FONT_SIZE}px SunForest`;
+      ctx.textBaseline = "top";
+      const maxWidth = W - 2 * PADDING;
+
+      const words = text.split(/\s+/);
+      const lines = [];
+      let line = "";
+      for (const w of words) {
+        const test = line ? line + " " + w : w;
+        if (ctx.measureText(test).width <= maxWidth) {
+          line = test;
+        } else {
+          if (line) lines.push(line);
+          line = w;
+        }
+      }
+      if (line) lines.push(line);
+
+      // canvas size
+      canvas.width = W;
+      canvas.height = Math.max(1, lines.length) * LINE;
+
+      // draw pass
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `${FONT_SIZE}px SunForest`;
+      ctx.fillStyle = "#000";
+      ctx.textBaseline = "top";
+
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const w = ctx.measureText(l).width;
+        const x = PADDING + (maxWidth - w) / 2;
+        const y = i * LINE;
+        ctx.fillText(l, x, y);
+      }
+      return canvas.toDataURL("image/png");
     }
-    if (line) lines.push(line);
-
-    // set canvas size
-    canvas.width = W;
-    canvas.height = Math.max(1, lines.length) * LINE;
-
-    // draw pass
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.font = `${FONT_SIZE}px NewFont`;
-    ctx.fillStyle = "#000";
-    ctx.textBaseline = "top";
-
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i];
-      const w = ctx.measureText(l).width;
-      const x = PADDING + (maxWidth - w) / 2;
-      const y = i * LINE;
-      ctx.fillText(l, x, y);
-    }
-    return canvas.toDataURL("image/png");
-  }
   </script>
 </body>
 </html>
