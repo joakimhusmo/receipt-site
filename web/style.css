@@ -26,12 +26,12 @@ body {
 
 /* Card */
 .container {
-  background: #edf1ef;
+  background: rgba(255, 255, 255, 0.6);
   width: 100%;
   max-width: 820px;
   padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
 /* Title (kept empty visually) */
