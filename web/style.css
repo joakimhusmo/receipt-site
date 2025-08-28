@@ -9,7 +9,7 @@ body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 
   /* The image file is in /web/Images  — quoted path handles the space */
-  background-image: url("./Images/ARVQ Bakgrunn.jpeg");
+  background-image: url("./Images/ARYQ\ Bakgrunn.jpeg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
