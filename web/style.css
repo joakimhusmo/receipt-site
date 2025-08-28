@@ -26,12 +26,12 @@ body {
 
 /* Card */
 .container {
-  background: rgba(255, 255, 255, 0.6);
+  background: none;
   width: 100%;
   max-width: 820px;
   padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  box-shadow: none;
 }
 
 /* Title (kept empty visually) */
@@ -43,6 +43,23 @@ label {
   margin-bottom: 0.5rem;
   font-weight: 500;
   font-size: 1.1rem;
+}
+
+label, button {
+  font-family: 'Inter', sans-serif;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: none;          /* disable manual resize */
+  overflow: hidden;      /* hide scrollbars */
+  padding: 10px;
+  font-size: 1.2rem;
+  line-height: 1.5;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 
 #msg {

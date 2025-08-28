@@ -16,7 +16,7 @@
     <h1></h1>
 
     <label for="msg">Write your letter here ...</label>
-    <input id="msg" type="text" placeholder="Write your letter here …" />
+    <textarea id="msg" placeholder="Write your letter here …"></textarea>
 
     <button id="btnCustom">Print</button>
 
@@ -24,110 +24,116 @@
   </div>
 
   <script>
-    // ---------- Tunables ----------
-    const W        = 544;  // usable receipt width (dots)
-    const PADDING  = 28;
-    let   FONT_SIZE = 120; // px
-    let   LINE      = 90;  // px
+  // ---------- Tunables ----------
+  const W        = 544;  // usable receipt width (dots)
+  const PADDING  = 28;
+  let   FONT_SIZE = 120; // px
+  let   LINE      = 90;  // px
 
-    // ---------- Config ----------
-    const API_BASE = window.location.origin;
-    const LOCATION_ID =
-      new URLSearchParams(location.search).get("loc") || "oslo-gallery-1";
+  // ---------- Config ----------
+  const API_BASE = window.location.origin;
+  const LOCATION_ID =
+    new URLSearchParams(location.search).get("loc") || "oslo-gallery-1";
 
-    const msgEl     = document.getElementById("msg");
-    const btnCustom = document.getElementById("btnCustom");
-    const statusEl  = document.getElementById("statusEl");
+  const msgEl     = document.getElementById("msg");
+  const btnCustom = document.getElementById("btnCustom");
+  const statusEl  = document.getElementById("statusEl");
 
-    async function sendPngToServer(png, loc) {
-      // Try REST path version first
-      let r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(loc)}`, {
+  async function sendPngToServer(png, loc) {
+    // Try REST path version first
+    let r = await fetch(`${API_BASE}/print-image/${encodeURIComponent(loc)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ png })
+    });
+    // Fallback to body-with-location
+    if (r.status === 404) {
+      r = await fetch(`${API_BASE}/print-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ png })
+        body: JSON.stringify({ png, location: loc })
       });
-      // Fallback to body-with-location
-      if (r.status === 404) {
-        r = await fetch(`${API_BASE}/print-image`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ png, location: loc })
-        });
+    }
+    return r;
+  }
+
+  btnCustom.onclick = async () => {
+    const text = String(msgEl.value || "").trim();
+    if (!text) {
+      statusEl.className = "error";
+      statusEl.textContent = "Skriv en melding.";
+      return;
+    }
+    try {
+      const png = await textToPngDataURL(text);
+      const r   = await sendPngToServer(png, LOCATION_ID);
+      const j   = await r.json().catch(() => ({}));
+
+      if (r.ok && (j.ok !== false)) {
+        statusEl.className = "success";
+        statusEl.textContent = "✓";
+      } else {
+        throw new Error(j && j.error ? j.error : `HTTP ${r.status}`);
       }
-      return r;
+    } catch (e) {
+      statusEl.className = "error";
+      statusEl.textContent = `Utskriftsfeil: ${e.message || e}`;
+      console.error(e);
+    }
+  };
+
+  // Renders wrapped, centered text in your custom font -> PNG data URL
+  async function textToPngDataURL(text) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    // Measure with your new font family name
+    ctx.font = `${FONT_SIZE}px SunForest`;
+    ctx.textBaseline = "top";
+    const maxWidth = W - 2 * PADDING;
+
+    const words = text.split(/\s+/);
+    const lines = [];
+    let line = "";
+    for (const w of words) {
+      const test = line ? line + " " + w : w;
+      if (ctx.measureText(test).width <= maxWidth) {
+        line = test;
+      } else {
+        if (line) lines.push(line);
+        line = w;
+      }
+    }
+    if (line) lines.push(line);
+
+    canvas.width = W;
+    canvas.height = Math.max(1, lines.length) * LINE;
+
+    // White background
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw pass
+    ctx.font = `${FONT_SIZE}px SunForest`;
+    ctx.fillStyle = "#000";
+    ctx.textBaseline = "top";
+
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      const w = ctx.measureText(l).width;
+      const x = PADDING + (maxWidth - w) / 2;
+      const y = i * LINE;
+      ctx.fillText(l, x, y);
     }
 
-    btnCustom.onclick = async () => {
-      const text = String(msgEl.value || "").trim();
-      if (!text) {
-        statusEl.className = "error";
-        statusEl.textContent = "Skriv en melding.";
-        return;
-      }
-      try {
-        const png = await textToPngDataURL(text);
-        const r   = await sendPngToServer(png, LOCATION_ID);
-        const j   = await r.json().catch(() => ({}));
+    return canvas.toDataURL("image/png");
+  }
 
-        if (r.ok && (j.ok !== false)) {
-          statusEl.className = "success";
-          statusEl.textContent = "Trykket ✓";
-        } else {
-          throw new Error(j && j.error ? j.error : `HTTP ${r.status}`);
-        }
-      } catch (e) {
-        statusEl.className = "error";
-        statusEl.textContent = `Utskriftsfeil: ${e.message || e}`;
-        console.error(e);
-      }
-    };
-
-    // Renders wrapped, centered text in your custom font -> PNG data URL
-    async function textToPngDataURL(text) {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-
-      // Measure with your new font family name
-      ctx.font = `${FONT_SIZE}px SunForest`;
-      ctx.textBaseline = "top";
-      const maxWidth = W - 2 * PADDING;
-
-      const words = text.split(/\s+/);
-      const lines = [];
-      let line = "";
-      for (const w of words) {
-        const test = line ? line + " " + w : w;
-        if (ctx.measureText(test).width <= maxWidth) {
-          line = test;
-        } else {
-          if (line) lines.push(line);
-          line = w;
-        }
-      }
-      if (line) lines.push(line);
-
-      canvas.width = W;
-      canvas.height = Math.max(1, lines.length) * LINE;
-
-      // White background
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw pass
-      ctx.font = `${FONT_SIZE}px SunForest`;
-      ctx.fillStyle = "#000";
-      ctx.textBaseline = "top";
-
-      for (let i = 0; i < lines.length; i++) {
-        const l = lines[i];
-        const w = ctx.measureText(l).width;
-        const x = PADDING + (maxWidth - w) / 2;
-        const y = i * LINE;
-        ctx.fillText(l, x, y);
-      }
-
-      return canvas.toDataURL("image/png");
-    }
-  </script>
+  // ---------- Auto-expand textarea ----------
+  msgEl.addEventListener("input", () => {
+    msgEl.style.height = "auto";                       // reset
+    msgEl.style.height = msgEl.scrollHeight + "px";    // grow to fit
+  });
+</script>
 </body>
 </html>
